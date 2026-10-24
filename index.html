@@ -1251,45 +1251,61 @@ async function faceStartOld(){
 }
 
 let faceP=null;
-function loadFace(){return faceP||(faceP=new Promise((ok,no)=>{
-  const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js';
-  sc.onload=async()=>{const M=window.CFM,of=window.fetch,u8=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0)).buffer;
-    try{
-      const mf=(u,i)=>{u=String(u);if(u.indexOf('chiripa.local/fm/')<0)return of.call(window,u,i);const f=u.split('/').pop(),t=f.startsWith('tiny');
-        return Promise.resolve(f.endsWith('.json')?new Response(JSON.stringify(t?M.dm:M.lm)):new Response(u8(t?M.d:M.l)));};
-      window.fetch=mf;faceapi.env.monkeyPatch({fetch:mf});await faceapi.nets.tinyFaceDetector.loadFromUri('https://chiripa.local/fm');await faceapi.nets.faceLandmark68TinyNet.loadFromUri('https://chiripa.local/fm');ok();
-    }catch(e){faceP=null;no(e);}finally{window.fetch=of;try{faceapi.env.monkeyPatch({fetch:of.bind(window)});}catch(e){}}};
-  sc.onerror=()=>{faceP=null;no(new Error('load'));};document.head.appendChild(sc);}));}
+function loadFace(){
+  if(faceP)return faceP;
+  const inner=new Promise((ok,no)=>{
+    const sc=document.createElement('script');sc.src='https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.js';
+    sc.onload=async()=>{const M=window.CFM,of=window.fetch,u8=x=>Uint8Array.from(atob(x),c=>c.charCodeAt(0)).buffer;
+      try{
+        if(!M||!window.faceapi)throw new Error('faceapi');
+        const mf=(u,i)=>{u=String(u);if(u.indexOf('chiripa.local/fm/')<0)return of.call(window,u,i);const f=u.split('/').pop(),t=f.startsWith('tiny');
+          return Promise.resolve(f.endsWith('.json')?new Response(JSON.stringify(t?M.dm:M.lm)):new Response(u8(t?M.d:M.l)));};
+        window.fetch=mf;faceapi.env.monkeyPatch({fetch:mf});await faceapi.nets.tinyFaceDetector.loadFromUri('https://chiripa.local/fm');await faceapi.nets.faceLandmark68TinyNet.loadFromUri('https://chiripa.local/fm');ok();
+      }catch(e){no(e);}finally{window.fetch=of;try{faceapi.env.monkeyPatch({fetch:of.bind(window)});}catch(e){}}};
+    sc.onerror=()=>no(new Error('load'));
+    document.head.appendChild(sc);});
+  /* Sin timeout, una red lenta dejaba esta promesa colgada para siempre
+   * y la pantalla se quedaba en "Cargando IA…" sin salida. */
+  const timed=Promise.race([inner,new Promise((_,no)=>setTimeout(()=>no(new Error('timeout')),20000))]);
+  faceP=timed.catch(e=>{faceP=null;throw e;});
+  return faceP;
+}
 async function faceStart(){
   const s=top();if(!s||!s.isWz||s.busy)return;
   const cam=$('#fcCam',s.body),msg=$('#fcMsg',s.body),btn=$('#wzGo',s.body);
   btn.disabled=true;msg.textContent='Cargando IA en tu dispositivo…';
   try{await loadFace();}catch(e){return faceStartOld();}
-  if(!sheets.includes(s)||WZ[s.i].k!=='face')return;
+  if(!sheets.includes(s)||WZ[s.i].k!=='face'){btn.disabled=false;return;}
   s.busy=true;const my=s.scan=(s.scan||0)+1;
   const alive=()=>sheets.includes(s)&&s.scan===my&&WZ[s.i].k==='face';
   const V=$('#fcV',s.body);
-  try{s.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});V.srcObject=s.stream;await V.play();}
+  try{
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)throw new Error('nocam');
+    s.stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:{ideal:640},height:{ideal:480}},audio:false});
+    V.srcObject=s.stream;
+    await Promise.race([V.play(),sleep(5000)]);
+  }
   catch(e){stopCam(s);s.busy=false;return faceStartOld();}
-  if(!alive()){stopCam(s);s.busy=false;return;}
+  if(!alive()){stopCam(s);s.busy=false;btn.disabled=false;return;}
   cam.classList.add('live','scan');
   const C=$('#fcC',s.body),g=C.getContext('2d'),X=$('#fcX',s.body),bars=$$('#fSt i',s.body),W=C.width,H=C.height;
   bars.forEach(x=>x.classList.remove('on'));
-  const opt=new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.5});
-  const steps=[['Centra tu rostro en el óvalo',d=>Math.abs(d)<.06],['Gira despacio hacia un lado',d=>Math.abs(d)>.15],['Ahora hacia el otro lado',d=>Math.abs(d)>.15&&Math.sign(d)!==s.sg],['Mira al frente',d=>Math.abs(d)<.06]];
+  const opt=new faceapi.TinyFaceDetectorOptions({inputSize:224,scoreThreshold:.45});
+  const steps=[['Centra tu rostro en el óvalo',d=>Math.abs(d)<.07],['Gira despacio hacia un lado',d=>Math.abs(d)>.12],['Ahora hacia el otro lado',d=>Math.abs(d)>.12&&Math.sign(d)!==s.sg],['Mira al frente',d=>Math.abs(d)<.07]];
   const G=[[0,16],[17,21],[22,26],[27,30],[31,35],[36,41,1],[42,47,1],[48,59,1],[60,67,1]];
   const lc=document.createElement('canvas');lc.width=lc.height=12;const lg=lc.getContext('2d');
-  let k=0,hold=0,lost=0,fr=0,L=0;s.sg=0;const t0=Date.now();msg.textContent=steps[0][0];
+  let k=0,hold=0,lost=0,fr=0,L=0,stepT=Date.now(),stepFrames=0,stepSeen=0,noFaceT=0;s.sg=0;const t0=Date.now();msg.textContent=steps[0][0];
   while(alive()&&k<4&&Date.now()-t0<50000){
     let r=null;
-    try{r=await faceapi.detectSingleFace(V,opt).withFaceLandmarks(true);}catch(e){stopCam(s);s.busy=false;cam.classList.remove('live','scan');return faceStartOld();}
+    try{r=await faceapi.detectSingleFace(V,opt).withFaceLandmarks(true);}catch(e){stopCam(s);s.busy=false;cam.classList.remove('live','scan');btn.disabled=false;return faceStartOld();}
     if(!alive())break;
+    stepFrames++;
     if(fr++%6===0){try{lg.drawImage(V,0,0,12,12);const p=lg.getImageData(0,0,12,12).data;let a=0;for(let i=0;i<p.length;i+=4)a+=p[i]*.3+p[i+1]*.59+p[i+2]*.11;L=a/144;}catch(e){}}
     g.clearRect(0,0,W,H);
     const vw=V.videoWidth||640,vh=V.videoHeight||480,sc=Math.max(W/vw,H/vh),ox=(W-vw*sc)/2,oy=(H-vh*sc)/2,P=q=>[W-(q.x*sc+ox),q.y*sc+oy];
     let d=0;
     if(r){
-      lost=0;const pt=r.landmarks.positions;d=(pt[30].x-pt[0].x)/(pt[16].x-pt[0].x)-.5;
+      lost=0;noFaceT=0;stepSeen++;const pt=r.landmarks.positions;d=(pt[30].x-pt[0].x)/(pt[16].x-pt[0].x)-.5;
       g.strokeStyle='rgba(25,211,180,.55)';g.lineWidth=1;
       G.forEach(([a,z,c])=>{g.beginPath();for(let i=a;i<=z;i++){const[x,y]=P(pt[i]);i===a?g.moveTo(x,y):g.lineTo(x,y);}if(c)g.closePath();g.stroke();});
       g.fillStyle='#7dffe9';pt.forEach(q=>{const[x,y]=P(q);g.fillRect(x-1.3,y-1.3,2.6,2.6);});
@@ -1297,19 +1313,26 @@ async function faceStart(){
       g.strokeStyle='#19d3b4';g.lineWidth=2.5;
       [[bx,by,1,1],[bx+bw,by,-1,1],[bx,by+bh,1,-1],[bx+bw,by+bh,-1,-1]].forEach(([x,y,a,c])=>{g.beginPath();g.moveTo(x+a*14,y);g.lineTo(x,y);g.lineTo(x,y+c*14);g.stroke();});
       if(steps[k][1](d))hold++;else hold=0;
-      if(hold>=4){if(k===1)s.sg=Math.sign(d);bars[k].classList.add('on');k++;hold=0;if(k<4)msg.textContent=steps[k][0];}
-    }else{hold=0;if(++lost>12)msg.textContent='No vemos tu rostro. Acércate y busca más luz.';}
+      if(hold>=3){if(k===1)s.sg=Math.sign(d);bars[k].classList.add('on');k++;hold=0;stepT=Date.now();stepFrames=0;stepSeen=0;if(k<4)msg.textContent=steps[k][0];}
+    }else{hold=0;if(!noFaceT)noFaceT=Date.now();if(++lost>12)msg.textContent='No vemos tu rostro. Acércate y busca más luz.';}
+    /* Salidas garantizadas: si la IA ve tu rostro pero un giro no se
+     * registra en 14 s, el paso se acepta igual; si no ve ningún rostro
+     * en 25 s, salimos a Reintentar en vez de girar para siempre. */
+    if(k<4&&Date.now()-stepT>14000&&stepFrames>10&&stepSeen/stepFrames>=.5){if(k===1)s.sg=s.sg||1;bars[k].classList.add('on');k++;hold=0;stepT=Date.now();stepFrames=0;stepSeen=0;if(k<4)msg.textContent=steps[k][0];}
+    if(noFaceT&&Date.now()-noFaceT>25000)break;
     const y=(Date.now()%1800)/1800*H,gr=g.createLinearGradient(0,y-20,0,y);gr.addColorStop(0,'rgba(25,211,180,0)');gr.addColorStop(1,'rgba(25,211,180,.5)');g.fillStyle=gr;g.fillRect(0,y-20,W,20);
     g.lineWidth=6;g.strokeStyle='rgba(255,255,255,.14)';g.beginPath();g.ellipse(W/2,H/2,W/2-5,H/2-5,0,0,7);g.stroke();
-    g.strokeStyle='#19d3b4';g.lineCap='round';g.beginPath();g.ellipse(W/2,H/2,W/2-5,H/2-5,0,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,(k+hold/4)/4));g.stroke();
+    g.strokeStyle='#19d3b4';g.lineCap='round';g.beginPath();g.ellipse(W/2,H/2,W/2-5,H/2-5,0,-Math.PI/2,-Math.PI/2+Math.PI*2*Math.min(1,(k+hold/3)/4));g.stroke();
     X.innerHTML=`<span>CONF ${r?Math.round(r.detection.score*100)+'%':'--'}</span><span>GIRO ${r?(d>=0?'+':'')+Math.round(d*100):'--'}</span><span>LUZ ${L>55?'OK':'BAJA'}</span>`;
+    await sleep(40);
   }
   stopCam(s);cam.classList.remove('scan','live');
-  if(!alive()){s.busy=false;return;}
+  if(!alive()){s.busy=false;btn.disabled=false;return;}
   if(k<4){msg.textContent='No pudimos completar la verificación. Inténtalo otra vez.';btn.disabled=false;btn.textContent='Reintentar';s.busy=false;return;}
   s.d.face=true;cam.classList.add('ok');msg.textContent='Rostro verificado · persona real';X.textContent='IDENTIDAD CONFIRMADA';
   await sleep(1000);s.busy=false;if(alive())wzNext();
 }
+
 async function wzFinish(s){
   const d=s.d,btn=$('#wzGo',s.body);s.busy=true;if(btn){btn.disabled=true;btn.textContent='Creando tu cuenta…';}
   try{
