@@ -512,6 +512,8 @@ details.faq p{margin:0;padding:0 16px 16px;color:var(--fg2);font-size:.9375rem;l
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="aws-sdk-v3.bundle.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+<script src="https://js.stripe.com/v3/"></script>
 <script src="chiripa-cloud.js"></script>
 <script>
 (function(){
@@ -960,7 +962,7 @@ function profileHTML(){
   ${rowBtn('bank','var(--teal)','Bancos',S.banks.length+(S.banks.length===1?' cuenta':' cuentas'),'banks')}${rowBtn('target','var(--indigo)','Ahorros',money(savedTotal()),'goals')}${rowBtn('bank','var(--green)','Depósito directo','','dd')}${rowBtn('shield','var(--gray)','Límites de envío',money(Math.max(0,weekLimit()-weeklySent())).replace('.00','')+' libres','limits')}</div>
   <div class="list-h">Seguridad</div><div class="list">
   ${rowBtn('shield','var(--accent)','Centro de seguridad',secScore()+' de 5','seccenter')}${rowBtn('faceid','var(--indigo)','Face ID o huella',S.bioId&&s.faceid?'Activado':'Desactivado','bio-toggle')}${rowBtn('lock','var(--teal)','Verificación en dos pasos',S.totp?'Activa':'Desactivada','twofa')}${rowBtn('doc','var(--gray)','Verificación de identidad',S.kyc?'Completa':'Pendiente','kyc')}
-  ${rowSw('lock','var(--indigo)','Pedir código al abrir','lockOpen',s.lockOpen)}${rowBtn('clock','var(--gray)','Bloqueo automático',autoLabel(),'autolock')}${rowBtn('lock','var(--gray)','Cambiar código','','change-pin')}${rowBtn('lock','var(--teal)','Cambiar contraseña','','change-pw')}${rowBtn('shield','var(--orange)','Nueva clave de recuperación','','new-rec')}${rowBtn('logout','var(--red)','Cerrar sesión','','logout')}</div>
+  ${rowSw('lock','var(--indigo)','Pedir código al abrir','lockOpen',s.lockOpen)}${rowBtn('clock','var(--gray)','Bloqueo automático',autoLabel(),'autolock')}${rowBtn('lock','var(--gray)','Cambiar código','','change-pin')}${rowBtn('lock','var(--teal)','Cambiar contraseña','','change-pw')}${rowBtn('shield','var(--orange)','Nueva clave de recuperación','','new-rec')}${rowBtn('shield','var(--indigo)','Cuenta Vega Platforms',S.user.vegaSub?'Vinculada':'Entrar','vega-open')}${rowBtn('shield','var(--teal)','Verificación con tarjeta',S.stripeVerified?'Verificada':'$1 · se devuelve','stripe-verify')}${rowBtn('logout','var(--red)','Cerrar sesión','','logout')}</div>
   <div class="list-h">Preferencias</div><div class="list">
   ${rowSw('bell','var(--red)','Notificaciones','push',s.push)}${rowSw('eyeoff','var(--gray)','Ocultar saldo','hideBal',s.hideBal)}
   <div style="padding:12px 16px;border-top:.5px solid var(--sep)"><div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">${tile('moon','var(--indigo)')}<b style="font-weight:500">Apariencia</b></div><div class="seg">${[['auto','Automático'],['light','Claro'],['dark','Oscuro']].map(x=>`<button data-act="theme" data-t="${x[0]}" aria-pressed="${s.theme===x[0]}">${x[1]}</button>`).join('')}</div></div></div>
@@ -1089,7 +1091,7 @@ function openWelcome(){
     body:()=>`<div class="lock-brand" style="margin-bottom:0">${logo(64)}<span style="background:none;width:auto;height:auto;display:block;color:var(--fg);font-weight:800;letter-spacing:-.04em;text-transform:lowercase">chiripa</span></div>
     <div class="wc" id="wc" tabindex="0" aria-label="Funciones de Chiripa">${slides.map(x=>`<div class="ws">${x[1]?`<div class="wi" style="background:${x[1]}">${ic(x[0])}</div>`:`<div style="width:100%;max-width:290px">${cardVisual()}</div>`}<h2>${x[2]}</h2><p>${x[3]}</p></div>`).join('')}</div>
     <div class="wdots" id="wdots">${slides.map((_,i)=>`<i class="${i?'':'on'}"></i>`).join('')}</div>
-    <div style="display:grid;gap:10px;width:100%"><button class="btn" data-act="su-start">Crear cuenta</button><button class="btn gray" data-act="login">Iniciar sesión</button></div>
+    <div style="display:grid;gap:10px;width:100%"><button class="btn" data-act="vega-open">Entrar con Vega Platforms</button><button class="btn gray" data-act="su-start">Crear cuenta</button><button class="btn plain" data-act="login">Iniciar sesión</button></div>
     <p class="list-f" style="text-align:center;margin-top:14px">Chiripa usa dinero de práctica. Al continuar aceptas que no mueve dinero real.</p>`,
     mount:s=>{
       const wc=$('#wc',s.body);if(!wc)return;
@@ -1346,6 +1348,128 @@ async function wzFinish(s){
     openRecovery(key,()=>toast('¡Cuenta creada!',d.tg+' · verificada y lista para usar'));
   }catch(e){s.busy=false;if(btn){btn.disabled=false;btn.textContent='Crear mi cuenta';}const x=$('#wzE',s.body);if(x)x.textContent='No se pudo crear la cuenta. Inténtalo otra vez.';}
 }
+/* ---- Cuenta Vega Platforms (la misma cuenta de Drex) ---- */
+function vegaErrText(e){
+  const c=e&&e.code||'';
+  if(c==='NotAuthorizedException'||c==='UserNotFoundException')return 'Correo o contraseña incorrectos.';
+  if(c==='UserNotConfirmedException')return 'Tu correo aún no está verificado. Confírmalo en Drex y vuelve a entrar.';
+  if(c==='PasswordResetRequiredException')return 'Tu cuenta necesita una contraseña nueva. Cámbiala en Drex.';
+  if(c==='vega/new-password-required')return e.message;
+  return 'No se pudo iniciar sesión. Revisa tu conexión e inténtalo otra vez.';
+}
+function openVegaLogin(){
+  if(sheets.some(s=>s.isVega))return;
+  openSheet({title:'',size:'full',left:'close',props:{isVega:true},
+    body:()=>`<div class="lock-brand">${logo(56)}<span style="background:none;width:auto;height:auto;display:block;color:var(--fg);font-weight:800;letter-spacing:-.04em">Vega Platforms</span></div>
+    <h3 style="margin:4px 0 0;text-align:center;font-size:1.25rem">Entrar con Vega Platforms</h3><p class="pin-sub" style="text-align:center;margin:6px 0 16px">Usa la misma cuenta de Drex. Tu Chiripa se guarda en tu cuenta y te sigue en tus dispositivos.</p>
+    <div class="field" style="background:var(--sheet-surface)"><input id="vgE" type="email" inputmode="email" placeholder="tu@correo.com" autocomplete="email" autocapitalize="none" spellcheck="false" data-enter="vega-go"></div>
+    <div style="height:10px"></div>${pwField('vgP','Contraseña','current-password','vega-go')}
+    <p class="list-f neg" id="vgErr" style="text-align:center;min-height:1.2em"></p>
+    <div class="pad-b" style="display:grid;gap:10px"><button class="btn" id="vgGo" data-act="vega-go">Entrar</button><button class="btn plain" data-act="vega-forgot">¿Olvidaste tu contraseña?</button></div>`});
+}
+async function vegaLink(session,pw){
+  S.user.vegaSub=session.sub;
+  if(session.email)S.user.email=session.email;
+  if(session.name&&(!S.user.name||S.user.name==='Usuario Nuevo'))S.user.name=session.name;
+  if(pw)S.user.auth=await mkAuth(pw);
+  S.onboarded=true;S.authLock=0;save();setAuthed(true);
+  try{await startShared();}catch(e){}
+  closeAllSheets();ui.tab='home';render();
+  toast('Sesión de Vega Platforms','Tu cuenta quedó vinculada','ok','shield');
+}
+async function vegaGo(){
+  const s=top();if(!s||!s.isVega)return;
+  const e=m=>{$('#vgErr',s.body).textContent=m;};
+  const em=$('#vgE',s.body).value.trim(),p=$('#vgP',s.body).value;
+  if(!validEmail(em))return e('Escribe un correo válido.');
+  if(!p)return e('Escribe tu contraseña.');
+  const btn=$('#vgGo',s.body);btn.disabled=true;btn.textContent='Entrando…';
+  try{
+    const session=await window.ChiripaCloud.vega.signIn(em,p);
+    await vegaLink(session,p);
+  }catch(err){
+    btn.disabled=false;btn.textContent='Entrar';
+    if(err&&err.code==='vega/totp-required'){openVegaTotp(p);return;}
+    e(vegaErrText(err));
+  }
+}
+function openVegaTotp(pw){
+  openSheet({title:'Código de verificación',size:'tall',props:{isVegaTotp:true,pw},
+    body:()=>`<p class="list-f" style="margin:0 4px 4px">Tu cuenta Vega Platforms pide un código de 6 dígitos de tu app de autenticación.</p>
+    <div class="field" style="background:var(--sheet-surface)"><input id="vgT" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="000000" data-enter="vega-totp-go" style="letter-spacing:.3em;text-align:center"></div>
+    <p class="list-f neg" id="vgTErr" style="text-align:center;min-height:1.2em"></p>
+    <div class="pad-b"><button class="btn" id="vgTGo" data-act="vega-totp-go">Verificar</button></div>`});
+}
+async function vegaTotpGo(){
+  const s=top();if(!s||!s.isVegaTotp)return;
+  const e=m=>{$('#vgTErr',s.body).textContent=m;};
+  const code=$('#vgT',s.body).value.trim();
+  if(code.length!==6)return e('Escribe el código de 6 dígitos.');
+  const btn=$('#vgTGo',s.body);btn.disabled=true;
+  try{
+    const session=await window.ChiripaCloud.vega.completeTotp(code);
+    await vegaLink(session,s.pw);
+  }catch(err){btn.disabled=false;e('Ese código no es correcto. Inténtalo otra vez.');}
+}
+/* ---- Verificación con tarjeta vía Stripe ($1 que se devuelve) ---- */
+const CHIRIPA_PAYMENTS_URL='https://fhbtjdgmt7vlpsmt75rtbnldzy0yqysv.lambda-url.us-east-1.on.aws';
+const CHIRIPA_STRIPE_PK='pk_live_51RF61wEVmZuhjNHxXdghjANXPCPYvsnR8hOsJi3k0UnXtfb4IsbdSAn8pxPzUHNiZm4rNOWX2qTQwCfUPj5MAYC300WrT5YKQ3';
+async function chiripaPost(path,fields){
+  const r=await fetch(CHIRIPA_PAYMENTS_URL+path,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify(fields)});
+  const d=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(d.error||'Error de conexión');
+  return d;
+}
+function stripeMarkVerified(){
+  S.stripeVerified=true;save();render();
+  toast('Cuenta verificada','La retención de $1 se anuló, no se cobró nada','ok','shield');
+}
+async function openStripeVerify(){
+  if(S.stripeVerified){toast('Cuenta verificada','Ya completaste la verificación con tarjeta','ok','shield');return;}
+  let vs=null;
+  try{vs=window.ChiripaCloud&&window.ChiripaCloud.vega?await window.ChiripaCloud.vega.session():null;}catch(e){}
+  if(!vs){openVegaLogin();toast('Entra con Vega Platforms','La verificación usa tu cuenta Vega','info','shield');return;}
+  let d;
+  try{d=await chiripaPost('/create-verification-payment',{idToken:vs.idToken});}
+  catch(e){toast('No se pudo iniciar','Revisa tu conexión e inténtalo otra vez','bad','shield');return;}
+  if(d.alreadyVerified){stripeMarkVerified();return;}
+  const sh=openSheet({title:'Verificación con tarjeta',size:'tall',props:{isStripeVerify:true,pi:d.paymentIntentId||''},
+    body:()=>`<p class="list-f" style="margin:0 4px 4px">Verificamos tu tarjeta con una retención temporal de $1. No es un cobro: la retención se anula en cuanto se confirma.</p>
+    <div id="svMount" style="margin-top:10px"></div>
+    <p class="list-f neg" id="svErr" style="text-align:center;min-height:1.2em"></p>
+    <div class="pad-b"><button class="btn" id="svGo" data-act="stripe-go">Verificar $1</button></div>`});
+  try{
+    const stripe=Stripe(CHIRIPA_STRIPE_PK);
+    const elements=stripe.elements({clientSecret:d.clientSecret,appearance:{theme:'flat',variables:{colorPrimary:'#EE0000',borderRadius:'12px'}}});
+    elements.create('payment').mount($('#svMount',sh.body));
+    sh.stripe=stripe;sh.elements=elements;
+  }catch(e){$('#svErr',sh.body).textContent='No se pudo cargar el formulario de pago.';}
+}
+async function stripeVerifyGo(){
+  const s=top();if(!s||!s.isStripeVerify||!s.stripe)return;
+  const e=m=>{$('#svErr',s.body).textContent=m;};
+  const btn=$('#svGo',s.body);btn.disabled=true;btn.textContent='Verificando…';
+  try{
+    const res=await s.stripe.confirmPayment({elements:s.elements,confirmParams:{return_url:location.origin+location.pathname},redirect:'if_required'});
+    if(res.error)throw new Error(res.error.message||'La tarjeta fue rechazada.');
+    const vs=await window.ChiripaCloud.vega.session();
+    const st=await chiripaPost('/bank-verification-status',{idToken:vs.idToken,paymentIntentId:s.pi});
+    if(st.verified){closeSheet(s);stripeMarkVerified();}
+    else{btn.disabled=false;btn.textContent='Verificar $1';e('La verificación aún no se confirma. Inténtalo otra vez.');}
+  }catch(err){btn.disabled=false;btn.textContent='Verificar $1';e(err.message||'No se pudo verificar. Inténtalo otra vez.');}
+}
+async function stripeReturnCheck(){
+  try{
+    const q=new URLSearchParams(location.search);
+    const pi=q.get('payment_intent');
+    if(!pi)return;
+    history.replaceState(null,'',location.pathname);
+    const vs=window.ChiripaCloud&&window.ChiripaCloud.vega?await window.ChiripaCloud.vega.session():null;
+    if(!vs)return;
+    const st=await chiripaPost('/bank-verification-status',{idToken:vs.idToken,paymentIntentId:pi});
+    if(st.verified)stripeMarkVerified();
+  }catch(e){}
+}
 function openLogin(){
   if(sheets.some(s=>s.isLogin))return;
   const bio=!!(S.bioId&&S.settings.faceid);
@@ -1355,7 +1479,7 @@ function openLogin(){
     <div class="field" style="background:var(--sheet-surface)"><input id="lgU" placeholder="Correo o $usuario" autocomplete="username" autocapitalize="none" spellcheck="false" data-enter="login-go"></div>
     <div style="height:10px"></div>${pwField('lgP','Contraseña','current-password','login-go')}
     <p class="list-f neg" id="lgE" style="text-align:center;min-height:1.2em"></p>
-    <div class="pad-b" style="display:grid;gap:10px"><button class="btn" id="lgGo" data-act="login-go">Iniciar sesión</button>${bio?`<button class="btn gray" data-act="login-bio">${ic('faceid','s')}Usar Face ID</button>`:''}<button class="btn plain" data-act="forgot-pw">¿Olvidaste tu contraseña?</button></div>`});
+    <div class="pad-b" style="display:grid;gap:10px"><button class="btn" id="lgGo" data-act="login-go">Iniciar sesión</button><button class="btn gray" data-act="vega-open">Entrar con Vega Platforms</button>${bio?`<button class="btn gray" data-act="login-bio">${ic('faceid','s')}Usar Face ID</button>`:''}<button class="btn plain" data-act="forgot-pw">¿Olvidaste tu contraseña?</button></div>`});
   return sh;
 }
 function afterLogin(s){
@@ -1467,7 +1591,7 @@ async function newRecGo(){
   if(!(await checkAuth($('#nrP',s.body).value,S.user.auth))){btn.disabled=false;return e('Tu contraseña no es correcta.');}
   const key=genRecovery();S.user.rec=await mkRec(key);save();btn.disabled=false;closeSheet(s);openRecovery(key);
 }
-function logout(){closeAllSheets();setAuthed(false);ui.tab='home';ui.reveal=false;render();openLogin();}
+function logout(){try{if(window.ChiripaCloud&&window.ChiripaCloud.vega)window.ChiripaCloud.vega.signOut();}catch(e){}closeAllSheets();setAuthed(false);ui.tab='home';ui.reveal=false;render();openLogin();}
 function gate(){
   if(!S.onboarded){sheets.filter(x=>x.isLogin||x.isSetPw).forEach(closeSheet);openWelcome();return;}
   sheets.filter(x=>x.isWelcome).forEach(closeSheet);
@@ -1975,7 +2099,7 @@ const A={
     if(k==='hideBal')render();
     if(k==='lockOpen'&&v&&S.user.pinDef)toast('Código activo','Puedes cambiar el 1234 en Seguridad','info','lock');},
   theme:el=>{S.settings.theme=el.dataset.t;save();applyTheme();render();},
-  'su-start':openSignup,'wz-next':wzNext,'face-start':faceStart,'pin-forgot':openForgot,'pin-reset-new':pinResetGo,'login-go':loginGo,'login-bio':loginBio,'forgot-pw':openForgotPw,'forgot-go':forgotGo,'wipe-device':wipeDevice,'setpw-go':setPwGo,'change-pw':openChangePw,'chpw-go':changePwGo,'new-rec':openNewRec,'newrec-go':newRecGo,logout:logout,'rec-done':()=>{const x=top();if(x)closeSheet(x);},'pw-eye':el=>{const i=el.closest('.field').querySelector('input');const show=i.type==='password';i.type=show?'text':'password';el.innerHTML=ic(show?'eyeoff':'eye');},'bio-toggle':bioToggle,twofa:openTwoFa,'twofa-verify':twofaVerify,'twofa-off':()=>{S.totp=null;save();closeSheet(top());refresh();toast('Dos pasos desactivados','','info','shield');},'totp-go':totpGo,'totp-cancel':()=>{closeSheet(top());if(!sheets.some(x=>x.isLogin||x.isLock||x.isWelcome))openLock();},kyc:openKyc,'kyc-save':kycSave,seccenter:openSecCenter,'lock-on':()=>{S.settings.lockOpen=true;save();refresh();},autolock:()=>{const o=[0,1,5];S.settings.autoLock=o[(o.indexOf(S.settings.autoLock||0)+1)%3];save();render();},
+  'su-start':openSignup,'wz-next':wzNext,'face-start':faceStart,'pin-forgot':openForgot,'pin-reset-new':pinResetGo,'login-go':loginGo,'vega-open':openVegaLogin,'stripe-verify':openStripeVerify,'stripe-go':stripeVerifyGo,'vega-go':vegaGo,'vega-totp-go':vegaTotpGo,'vega-forgot':()=>toast('Contraseña de Vega Platforms','Restablécela en Drex y vuelve a entrar aquí','info','lock'),'login-bio':loginBio,'forgot-pw':openForgotPw,'forgot-go':forgotGo,'wipe-device':wipeDevice,'setpw-go':setPwGo,'change-pw':openChangePw,'chpw-go':changePwGo,'new-rec':openNewRec,'newrec-go':newRecGo,logout:logout,'rec-done':()=>{const x=top();if(x)closeSheet(x);},'pw-eye':el=>{const i=el.closest('.field').querySelector('input');const show=i.type==='password';i.type=show?'text':'password';el.innerHTML=ic(show?'eyeoff':'eye');},'bio-toggle':bioToggle,twofa:openTwoFa,'twofa-verify':twofaVerify,'twofa-off':()=>{S.totp=null;save();closeSheet(top());refresh();toast('Dos pasos desactivados','','info','shield');},'totp-go':totpGo,'totp-cancel':()=>{closeSheet(top());if(!sheets.some(x=>x.isLogin||x.isLock||x.isWelcome))openLock();},kyc:openKyc,'kyc-save':kycSave,seccenter:openSecCenter,'lock-on':()=>{S.settings.lockOpen=true;save();refresh();},autolock:()=>{const o=[0,1,5];S.settings.autoLock=o[(o.indexOf(S.settings.autoLock||0)+1)%3];save();render();},
   login:()=>{if(S.onboarded){closeAllSheets();gate();}else{toast('Aún no hay una cuenta aquí','Crea una para empezar.','info');openSignup();}},
   'change-pin':changePin,lock:openLock,help:openHelp,invite:openInvite,limits:openLimits,
   'demo-in':()=>{const c=S.contacts[rnd(0,S.contacts.length-1)],a=[1250,2000,3500,4800,7500][rnd(0,4)],n=['Gracias por todo','Mi parte del súper','Café de ayer','Entradas','Comida'][rnd(0,4)];
@@ -2026,7 +2150,7 @@ settle();
 setInterval(settle,1500);
 let lastAct=Date.now();['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{lastAct=Date.now();},true));
 setInterval(()=>{const m=S.settings.autoLock;if(S.onboarded&&m&&Date.now()-lastAct>m*60000&&!sheets.some(x=>x.isLock||x.isWelcome||x.isLogin||x.isSetPw||x.isRec)){openLock();}},10000);
-Promise.all([Promise.race([startShared(),new Promise(r=>setTimeout(r,2500))]),playIntro()]).then(async()=>{try{const u=S.user;if(u.pin&&u.pin!=='1234'){await setPin(u.pin);save();}else if(u.pin==='1234'&&u.pinDef===undefined){u.pinDef=true;}}catch(e){}gate();});
+Promise.all([Promise.race([startShared(),new Promise(r=>setTimeout(r,2500))]),playIntro()]).then(async()=>{try{const vs=window.ChiripaCloud&&window.ChiripaCloud.vega?await window.ChiripaCloud.vega.session():null;if(vs){S.user.vegaSub=vs.sub;if(vs.email)S.user.email=vs.email;if(vs.name&&(!S.user.name||S.user.name==='Usuario Nuevo'))S.user.name=vs.name;S.onboarded=true;save();setAuthed(true);}}catch(e){}try{const u=S.user;if(u.pin&&u.pin!=='1234'){await setPin(u.pin);save();}else if(u.pin==='1234'&&u.pinDef===undefined){u.pinDef=true;}}catch(e){}stripeReturnCheck();gate();});
 })();
 </script>
 

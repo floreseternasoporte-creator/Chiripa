@@ -1,91 +1,180 @@
-/* ChiripaCloud — backend de Amazon para Chiripa.
+/* ChiripaCloud — backend de Amazon para Chiripa (cuenta Vega Platforms).
  *
- * Reemplaza la capa de datos del entorno anterior (claude.use('db') /
- * claude.use('user')) por servicios de Amazon, exponiendo EXACTAMENTE la
- * misma interfaz que la app ya usa:
+ * Cuenta única de Vega Platforms: Chiripa entra con la MISMA cuenta de
+ * Drex (Cognito User Pool de Drex). Al iniciar sesión, el Identity Pool
+ * `vega-platforms` entrega credenciales AWS y los datos de Chiripa se
+ * guardan en DynamoDB `chiripa-kv` bajo el sub de la cuenta Vega.
+ * Sin sesión Vega, la app funciona solo en local (localStorage).
+ *
+ * Interfaz de datos (la misma que ya usa la app):
  *   ChiripaCloud.db.doc(path).get() / .set() / .update() / .delete() / .acquire()
  *   ChiripaCloud.db.collection(name).onSnapshot(cb, err)
  *   ChiripaCloud.db.collection(name).where(field,'==',value).onSnapshot(cb, err)
- *   ChiripaCloud.db.collection(name).doc().set(obj)
  *   ChiripaCloud.user.id() / .me() / .can('data.write')
+ *   ChiripaCloud.vega.signIn(email, pw) / .completeTotp(code) / .signOut() / .session()
  *
- * Motor de datos: DynamoDB, tabla `chiripa-kv` (región us-east-1).
- * La tabla emula un árbol de documentos, igual que en Drex:
- *   pk = primer segmento de la ruta, sk = resto unido con "/",
- *   atributo "v" = el documento serializado en JSON.
- *   Ej: doc('data/users/<id>/state') -> pk='data', sk='users/<id>/state'
- *       doc('accounts/<id>')        -> pk='accounts', sk='<id>'
- *       doc('tags/<tag>')           -> pk='tags', sk='<tag>'
- *       collection('transfers')     -> pk='transfers', sk='<id de la transferencia>'
- *
- * Identidad: Amazon Cognito Identity Pool. Cada navegador/dispositivo
- * recibe una identidad persistente de Cognito; ese id es el UID del
- * usuario dentro de Chiripa (sus registros, su estado y sus
- * transferencias se guardan bajo ese id en DynamoDB).
- *
- * Tiempo real: DynamoDB no empuja cambios al navegador, así que
- * onSnapshot sondea la tabla cada `pollMs` y emite los cambios
- * (added / modified / removed) calculando la diferencia, igual que
- * hacía el listener anterior. En la práctica una transferencia le
- * llega al otro usuario en ~3 segundos.
- *
- * Si `identityPoolId` está vacío, ChiripaCloud.db es null y la app
- * funciona solo en local (localStorage), exactamente como antes.
- * El id NO es un secreto: es un identificador público del pool.
+ * DynamoDB emula un árbol de documentos: pk = primer segmento de la
+ * ruta, sk = resto unido con "/", atributo "v" = documento en JSON.
+ * Tiempo real por sondeo cada `pollMs` con cálculo de docChanges.
+ * Los ids de pools NO son secretos: son identificadores públicos.
  */
 (function (global) {
   'use strict';
 
   var CHIRIPA_AWS_CONFIG = {
     region: 'us-east-1',
-    identityPoolId: '', // <-- se rellena tras ejecutar backend/setup-aws.sh
+    identityPoolId: 'us-east-1:958300b9-c94b-4b82-8d89-1b5972b85685',
+    userPoolId: 'us-east-1_kDSYEBsnY',
+    userPoolClientId: '7cm12q14tm12u8b3bnn6ksjqni',
     tableName: 'chiripa-kv',
     pollMs: 3000
   };
+  var LOGIN_PROVIDER = 'cognito-idp.' + CHIRIPA_AWS_CONFIG.region + '.amazonaws.com/' + CHIRIPA_AWS_CONFIG.userPoolId;
 
   function configured() {
     return !!(CHIRIPA_AWS_CONFIG.identityPoolId &&
       CHIRIPA_AWS_CONFIG.identityPoolId.indexOf(':') > 0 &&
       global.DrexAwsV3);
   }
-
-  /* ---------- credenciales e identidad (Cognito Identity Pool) ---------- */
-  var _credProvider = null;
-  var _identityPromise = null;
-  function credProvider() {
-    if (_credProvider) return _credProvider;
-    var V3 = global.DrexAwsV3;
-    _credProvider = V3.fromCognitoIdentityPool({
-      identityPoolId: CHIRIPA_AWS_CONFIG.identityPoolId,
-      clientConfig: { region: CHIRIPA_AWS_CONFIG.region }
-    });
-    return _credProvider;
+  function vegaConfigured() {
+    return !!(configured() && global.AmazonCognitoIdentity);
   }
-  function identityId() {
-    if (_identityPromise) return _identityPromise;
-    _identityPromise = Promise.resolve()
-      .then(function () { return credProvider()(); })
-      .then(function (creds) {
-        if (!creds || !creds.identityId) throw new Error('Cognito no devolvió identidad');
-        return creds.identityId;
-      })
-      .catch(function (e) { _identityPromise = null; throw e; });
-    return _identityPromise;
+
+  /* ---------- cuenta Vega Platforms (Cognito User Pool de Drex) ---------- */
+  var _pool = null;
+  var _session = null;
+  var _pendingTotp = null;
+  function userPool() {
+    if (_pool) return _pool;
+    _pool = new global.AmazonCognitoIdentity.CognitoUserPool({
+      UserPoolId: CHIRIPA_AWS_CONFIG.userPoolId,
+      ClientId: CHIRIPA_AWS_CONFIG.userPoolClientId
+    });
+    return _pool;
+  }
+  function sessionInfo(session) {
+    var idToken = session.getIdToken();
+    var payload = idToken.decodePayload();
+    return {
+      sub: payload.sub,
+      email: payload.email || '',
+      name: payload.name || payload.preferred_username || '',
+      username: payload['cognito:username'] || '',
+      idToken: idToken.getJwtToken()
+    };
+  }
+  function vegaSession() {
+    if (_session) return Promise.resolve(_session);
+    if (!vegaConfigured()) return Promise.resolve(null);
+    var user = userPool().getCurrentUser();
+    if (!user) return Promise.resolve(null);
+    return new Promise(function (resolve) {
+      user.getSession(function (err, session) {
+        if (err || !session || !session.isValid()) { resolve(null); return; }
+        _session = sessionInfo(session);
+        resolve(_session);
+      });
+    });
+  }
+  function vegaSignIn(email, password) {
+    if (!vegaConfigured()) return Promise.reject(new Error('La cuenta Vega Platforms aún no está configurada en Chiripa.'));
+    var C = global.AmazonCognitoIdentity;
+    var clean = String(email || '').trim();
+    function attempt(username) {
+      var cognitoUser = new C.CognitoUser({ Username: username, Pool: userPool() });
+      var authDetails = new C.AuthenticationDetails({ Username: username, Password: String(password || '') });
+      return new Promise(function (resolve, reject) {
+        cognitoUser.authenticateUser(authDetails, {
+          onSuccess: function (session) {
+            _session = sessionInfo(session);
+            _credProvider = null; _credToken = null; _doc = null;
+            resolve(_session);
+          },
+          onFailure: function (err) { reject(err); },
+          totpRequired: function () {
+            var e = new Error('Escribe el código de tu app de autenticación.');
+            e.code = 'vega/totp-required';
+            _pendingTotp = { user: cognitoUser, resolve: resolve, reject: reject };
+            reject(e);
+          },
+          mfaRequired: function () {
+            var e = new Error('Escribe el código que te enviamos.');
+            e.code = 'vega/totp-required';
+            _pendingTotp = { user: cognitoUser, resolve: resolve, reject: reject };
+            reject(e);
+          },
+          newPasswordRequired: function () {
+            var e = new Error('Tu cuenta Vega Platforms necesita una contraseña nueva. Cámbiala en Drex y vuelve a entrar.');
+            e.code = 'vega/new-password-required';
+            reject(e);
+          }
+        });
+      });
+    }
+    return attempt(clean).catch(function (err) {
+      var lower = clean.toLowerCase();
+      var wrong = err && (err.code === 'NotAuthorizedException' || err.code === 'UserNotFoundException');
+      if (wrong && lower !== clean) return attempt(lower);
+      throw err;
+    });
+  }
+  function vegaCompleteTotp(code) {
+    if (!_pendingTotp) return Promise.reject(new Error('No hay un inicio de sesión esperando código.'));
+    var pending = _pendingTotp;
+    _pendingTotp = null;
+    return new Promise(function (resolve, reject) {
+      pending.user.sendMFACode(String(code || '').trim(), {
+        onSuccess: function (session) {
+          _session = sessionInfo(session);
+          _credProvider = null; _credToken = null; _doc = null;
+          resolve(_session);
+        },
+        onFailure: function (err) { reject(err); }
+      }, 'SOFTWARE_TOKEN_MFA');
+    });
+  }
+  function vegaSignOut() {
+    var user = vegaConfigured() ? userPool().getCurrentUser() : null;
+    if (user) user.signOut();
+    _session = null;
+    _credProvider = null; _credToken = null; _doc = null;
+  }
+
+  /* ---------- credenciales AWS (Identity Pool con la sesión Vega) ---------- */
+  var _credProvider = null;
+  var _credToken = null;
+  function credProvider() {
+    return vegaSession().then(function (session) {
+      if (!session) throw new Error('Sin sesión Vega Platforms');
+      if (_credProvider && _credToken === session.idToken) return _credProvider;
+      var logins = {};
+      logins[LOGIN_PROVIDER] = session.idToken;
+      _credProvider = global.DrexAwsV3.fromCognitoIdentityPool({
+        identityPoolId: CHIRIPA_AWS_CONFIG.identityPoolId,
+        logins: logins,
+        clientConfig: { region: CHIRIPA_AWS_CONFIG.region }
+      });
+      _credToken = session.idToken;
+      _doc = null;
+      return _credProvider;
+    });
   }
 
   /* ---------- cliente DynamoDB (documentos) ---------- */
   var _doc = null;
   function docClient() {
-    if (_doc) return _doc;
-    var V3 = global.DrexAwsV3;
-    var low = new V3.DynamoDBClient({
-      region: CHIRIPA_AWS_CONFIG.region,
-      credentials: credProvider()
+    return credProvider().then(function (provider) {
+      if (_doc) return _doc;
+      var V3 = global.DrexAwsV3;
+      var low = new V3.DynamoDBClient({
+        region: CHIRIPA_AWS_CONFIG.region,
+        credentials: provider
+      });
+      _doc = V3.DynamoDBDocumentClient.from(low);
+      return _doc;
     });
-    _doc = V3.DynamoDBDocumentClient.from(low);
-    return _doc;
   }
-  function send(cmd) { return docClient().send(cmd); }
+  function send(cmd) { return docClient().then(function (doc) { return doc.send(cmd); }); }
   function V3() { return global.DrexAwsV3; }
 
   /* ---------- rutas -> claves ---------- */
@@ -136,9 +225,6 @@
           TableName: CHIRIPA_AWS_CONFIG.tableName, Key: { pk: k.pk, sk: k.sk }
         })).then(function () { return null; });
       },
-      /* Reserva con expiración (para reclamar $tags sin duplicados):
-       * escribe solo si el documento no existe, ya es del mismo
-       * titular o la reserva anterior expiró. */
       acquire: function (opts) {
         opts = opts || {};
         var now = Date.now();
@@ -220,11 +306,8 @@
             if (!filterFn || filterFn(data, id)) current.set(id, data);
           });
           var changes = diffMaps(prev, current);
-          var first = prev.size === 0 && current.size >= 0 && !tick._seen;
+          var first = !tick._seen;
           tick._seen = true;
-          /* La app ignora los avisos en la primera entrega (seenInit);
-           * emitimos siempre el snapshot completo como cambios para que
-           * su estado inicial se llene igual que con el listener anterior. */
           if (first) {
             changes = [];
             current.forEach(function (data, id) {
@@ -274,10 +357,19 @@
     collection: collectionRef
   };
   var user = {
-    id: function () { return identityId(); },
-    me: function () { return Promise.resolve({}); },
+    id: function () {
+      return vegaSession().then(function (session) {
+        if (!session) throw new Error('Sin sesión Vega Platforms');
+        return session.sub;
+      });
+    },
+    me: function () {
+      return vegaSession().then(function (session) {
+        return session ? { sub: session.sub, email: session.email, name: session.name, username: session.username } : {};
+      });
+    },
     can: function () {
-      return identityId().then(function () { return true; }).catch(function () { return false; });
+      return vegaSession().then(function (session) { return !!session; }).catch(function () { return false; });
     }
   };
 
@@ -285,6 +377,13 @@
     config: CHIRIPA_AWS_CONFIG,
     configured: configured(),
     db: configured() ? db : null,
-    user: configured() ? user : null
+    user: configured() ? user : null,
+    vega: {
+      configured: vegaConfigured(),
+      signIn: vegaSignIn,
+      completeTotp: vegaCompleteTotp,
+      signOut: vegaSignOut,
+      session: vegaSession
+    }
   };
 })(typeof window !== 'undefined' ? window : this);
