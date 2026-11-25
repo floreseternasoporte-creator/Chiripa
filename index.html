@@ -170,7 +170,7 @@ button.row:active,a.row:active{background:var(--fill)}
 .ring circle{fill:none;stroke-width:4.5;stroke-linecap:round}
 .ring .tr{stroke:var(--fill2)}
 .ring span{position:absolute;inset:0;display:grid;place-items:center;font-size:.75rem;font-weight:700;font-variant-numeric:tabular-nums}
-.goalc.new{align-items:center;justify-content:center;color:var(--accent);background:var(--accent-soft);gap:6px;font-weight:600}
+.goalc.new{align-items:center;justify-content:center;color:var(--fg2);background:var(--surface);gap:6px;font-weight:600}
 .ppl{display:flex;flex-direction:column;align-items:center;gap:6px;width:62px;font-size:.75rem;text-align:center}
 .ppl span.nm{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .ppl .plus{width:52px;height:52px;border-radius:50%;background:var(--accent-soft);color:var(--accent);display:grid;place-items:center}
@@ -327,8 +327,8 @@ details.faq p{margin:0;padding:0 16px 16px;color:var(--fg2);font-size:.9375rem;l
 .logo{display:block;flex:none}
 .lock-brand .logo{filter:drop-shadow(0 6px 14px rgba(238,0,0,.28))}
 .ltitle{font-size:2.25rem;font-weight:800;letter-spacing:-.04em}
-.sec-h{position:relative;padding-top:14px;margin-top:30px}
-.sec-h::before{content:"";position:absolute;top:0;left:0;width:30px;height:4px;background:var(--accent)}
+.sec-h{position:relative;margin-top:30px}
+.sec-h::before{display:none}
 .sec-h h2{font-size:1.25rem;font-weight:800;letter-spacing:-.03em}
 .sec-h button{color:var(--fg);font-weight:600;text-decoration:underline;text-underline-offset:3px}
 .list-h{font-weight:700;letter-spacing:.09em;font-size:.75rem}
@@ -336,10 +336,10 @@ details.faq p{margin:0;padding:0 16px 16px;color:var(--fg2);font-size:.9375rem;l
 .list,.panel,.goalc,.act span.c{border-radius:8px;box-shadow:inset 0 0 0 1px var(--sep)}
 .sheet .list{box-shadow:inset 0 0 0 1px var(--sep)}
 .act span.c{color:var(--fg)}
-.goalc.new{box-shadow:none;border:1.5px dashed var(--accent)}
+.goalc.new{box-shadow:none;border:1.5px dashed var(--sep)}
 .tile{border-radius:6px}.cat .tile{border-radius:6px}
 .mk{border-radius:6px}
-.boostc{border-radius:8px;background:#000;border-left:6px solid var(--accent)}
+.boostc{border-radius:8px;background:#000}
 .btn{background:var(--fg);color:var(--bg);font-weight:700;letter-spacing:-.01em}
 .btn.tint{background:transparent;color:var(--fg);box-shadow:inset 0 0 0 1.5px var(--fg)}
 .btn.gray{background:var(--fill);color:var(--fg)}
@@ -360,7 +360,7 @@ details.faq p{margin:0;padding:0 16px 16px;color:var(--fg2);font-size:.9375rem;l
 .tabbar{left:0;right:0;bottom:0;height:calc(64px + env(safe-area-inset-bottom,0px));padding:0 0 env(safe-area-inset-bottom,0px);border-radius:0;background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;border-top:1px solid var(--sep)}
 .tab{position:relative;border-radius:0;height:64px;font-weight:600}
 .tab[aria-current="page"]{background:none;color:var(--fg);font-weight:800}
-.tab[aria-current="page"]::before{content:"";position:absolute;top:0;left:20%;right:20%;height:3px;background:var(--accent)}
+.tab[aria-current="page"]::before{content:"";position:absolute;top:0;left:20%;right:20%;height:3px;background:var(--fg)}
 .tab-pay{width:52px;height:52px;border-radius:8px;box-shadow:none;margin-top:6px}
 .screen{padding-bottom:96px}
 .navbar::before{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
@@ -601,7 +601,7 @@ const FAQ=[
   ['¿Cuánto cuesta retirar a mi banco?','El retiro estándar es gratis y tarda de 1 a 3 días hábiles. El instantáneo cuesta 1.5 % (mínimo $0.25).'],
   ['¿Qué hago si pierdo mi tarjeta?','Congélala desde la pestaña Tarjeta. Si no la vas a recuperar, usa Reemplazar tarjeta: se genera un número nuevo y el anterior deja de funcionar.'],
   ['¿Olvidé mi contraseña?','En la pantalla de inicio de sesión toca ¿Olvidaste tu contraseña? y escribe la clave de recuperación de 16 caracteres que guardaste al crear la cuenta. Puedes generar una clave nueva desde Perfil, en Seguridad.'],
-  ['¿Esto mueve dinero real?','No. Chiripa es una demostración: los bancos, la tarjeta y los pagos son simulados. Tu cuenta, tu actividad y tus transferencias se sincronizan con la base de datos de Amazon para que otros usuarios te encuentren y te paguen en tiempo real.']
+  ['¿Esto mueve dinero real?','El saldo es dinero de práctica, pero tu cuenta es real: tu actividad y tus transferencias se sincronizan en tiempo real con la base de datos de Amazon, y otros usuarios de Chiripa te encuentran y te pagan al instante.']
 ];
 
 /* ============ Estado ============ */
@@ -615,7 +615,7 @@ function seed(){
     v:2,
     user:{name:'Usuario Nuevo',tag:'$usuario'+rnd(100,999),phone:'Sin añadir',email:'Sin añadir',pin:'1234',pinDef:true},
     onboarded:false,bioId:null,totp:null,kyc:null,contacts:[],favs:{},goals:[],txs:[],banks:[],
-    notifs:[{id:'n1',ts:now,title:'Bienvenido a Chiripa',body:'Vincula un banco y añade dinero para empezar.',read:false}],
+    notifs:[{id:'n1',ts:now,title:'Bienvenido a Chiripa',body:'Entra con Vega Platforms para sincronizar tu cuenta en tiempo real.',read:false}],
     boost:null,
     card:{number:genCard(),exp:'09/29',cvv:String(rnd(100,999)),color:'rojo',frozen:false,wallet:false,online:true,limit:100000},
     settings:{theme:'auto',faceid:false,autoLock:0,lockOpen:false,push:true,hideBal:false,roundupGoal:null},
@@ -786,7 +786,7 @@ function requirePin(reason,cb,opts){
   if(S.lockUntil>Date.now()&&!opts.nocancel){toast('Código bloqueado','Inténtalo de nuevo en unos segundos','bad','lock');return null;}
   let tries=0;
   const done=()=>{if(S.totp&&opts.nocancel)askTotp(cb);else if(cb)cb();};
-  const sh=openPinPad({forgot:true,title:reason||'Ingresa tu código',sub:S.user.pinDef?'Código de demostración: 1234':'',face:!opts.forcePin,nocancel:opts.nocancel,brand:opts.brand,
+  const sh=openPinPad({forgot:true,title:reason||'Ingresa tu código',sub:'',face:!opts.forcePin,nocancel:opts.nocancel,brand:opts.brand,
     onSuccess(){closeSheet(sh);done();},
     async onPin(p,s){
       if(S.lockUntil>Date.now())return s.pinFail('Espera unos segundos e inténtalo otra vez');
@@ -1057,6 +1057,7 @@ function onTransfers(snap,key){
   refresh();
 }
 async function startShared(){
+  if(startShared._on)return;
   try{
     const db=window.ChiripaCloud&&window.ChiripaCloud.db,user=window.ChiripaCloud&&window.ChiripaCloud.user;
     if(!db||!user)return;
@@ -1072,10 +1073,10 @@ async function startShared(){
     else if(!ui.ro){S.user.tag=await claimAnyTag(S.user.tag);await aref.set({name:S.user.name,tag:S.user.tag});}
     save();render();
     gate();
-    DB.collection('accounts').onSnapshot(setDir,()=>{});
+    startShared._on=true;startShared._t=0;DB.collection('accounts').onSnapshot(setDir,()=>{});
     DB.collection('transfers').where('from','==',UID).onSnapshot(s=>onTransfers(s,'a'),()=>{});
     DB.collection('transfers').where('to','==',UID).onSnapshot(s=>onTransfers(s,'b'),()=>{});
-  }catch(e){DB=null;}
+  }catch(e){DB=null;startShared._on=false;if(!startShared._t||startShared._t<6){startShared._t=(startShared._t||0)+1;setTimeout(startShared,2000);}}
 }
 
 /* ============ Bienvenida, registro, inicio de sesión ============ */
@@ -1159,10 +1160,6 @@ const WZ=[
  {k:'dob',t:'¿Cuándo naciste?',s:'Debes tener 18 años o más para usar Chiripa.',
   body:s=>wzField('dob','',{v:s.d.dob,type:'date',max:10}),
   check:s=>{const a=(Date.now()-new Date(s.d.dob).getTime())/31557600000;if(!s.d.dob||isNaN(a)||a>120)return 'Escribe tu fecha de nacimiento.';return a<18?'Debes tener 18 años o más.':'';}},
- {k:'ssn',t:'Tu número de Seguro Social',s:'Es solo una demostración. NO escribas tu número real: usa uno de práctica, como 123-45-6789. No se envía ni se guarda.',
-  body:s=>wzField('ssn','000-00-0000',{v:s.d.ssn,type:'password',eye:1,inputmode:'numeric',max:11}),
-  mount:s=>{const i=$('[data-wz="ssn"]',s.body);i.addEventListener('input',()=>{i.value=ssnFmt(i.value);s.d.ssn=i.value;});},
-  check:s=>ssnOk(s.d.ssn)?'':'Escribe los 9 dígitos de un número válido (no puede empezar con 000, 666 o 9).'},
  {k:'addr',t:'¿Dónde vives?',s:'Tu dirección de residencia, para completar tu verificación.',
   body:s=>wzField('addr','Calle y número',{v:s.d.addr,ac:'street-address',cap:'words'})+'<div style="height:10px"></div>'+wzField('city','Ciudad',{v:s.d.city,ac:'address-level2',cap:'words'})+'<div style="height:10px"></div>'+wzField('zip','Código postal',{v:s.d.zip,inputmode:'numeric',ac:'postal-code',max:5}),
   check:s=>s.d.addr.trim().length<5?'Escribe tu dirección.':s.d.city.trim().length<2?'Escribe tu ciudad.':!/^\d{5}$/.test(s.d.zip.trim())?'El código postal debe tener 5 dígitos.':''},
@@ -1342,7 +1339,6 @@ async function wzFinish(s){
     Object.assign(S.user,{name:d.nm.trim(),tag:d.tg,email:d.em,auth,rec});await setPin(d.pin);
     S.kyc={legal:d.nm.trim(),dob:d.dob,addr:d.addr.trim(),city:d.city.trim(),zip:d.zip.trim(),face:true,ts:Date.now()};
     S.onboarded=true;S.lockUntil=0;save();setAuthed(true);
-    if(!S.txs.some(t=>t.sub==='Regalo de bienvenida'))addTx({type:'deposit',title:'Regalo de bienvenida',sub:'Regalo de bienvenida',amt:25000,eff:25000});
     if(DB){DB.doc('accounts/'+UID).set({name:S.user.name,tag:d.tg}).catch(()=>{});if(old&&old!==d.tg)DB.doc('tags/'+old.replace('$','')).delete().catch(()=>{});}
     closeAllSheets();ui.tab='home';render();
     openRecovery(key,()=>toast('¡Cuenta creada!',d.tg+' · verificada y lista para usar'));
@@ -1854,7 +1850,7 @@ function openCashOut(){
   const fee=c=>Math.max(25,Math.round(c*0.015));
   openAmount({title:'Retirar',cta:'Retirar',chips:[2000,5000,10000,20000],
     top:s=>`<div class="seg" style="margin:6px 0"><button data-act="co-speed" data-s="std" aria-pressed="${(s.speed||'std')==='std'}">Estándar</button><button data-act="co-speed" data-s="ins" aria-pressed="${s.speed==='ins'}">Instantáneo</button></div>`,
-    hint:(c,s)=>s.speed==='ins'?{t:`Comisión ${money(fee(c))} · recibes ${money(Math.max(0,c-fee(c)))}`}:{t:'Gratis · 1–3 días hábiles (en la demo, segundos)'},
+    hint:(c,s)=>s.speed==='ins'?{t:`Comisión ${money(fee(c))} · recibes ${money(Math.max(0,c-fee(c)))}`}:{t:'Gratis · llega en tiempo real'},
     ok:c=>c<=bal(),
     go:(c,s)=>requirePin('Confirma el retiro',()=>{
       const b=S.banks[0],ins=s.speed==='ins',f=ins?fee(c):0;
@@ -1862,9 +1858,9 @@ function openCashOut(){
       closeSheet(s);toast(ins?'Retiro enviado':'Retiro en camino',ins?`${money(c-f)} llegó a tu banco`:`${money(c)} llegará a tu banco`);refresh();})});
 }
 function openDD(){
-  openSheet({title:'Depósito directo',body:()=>`<div class="rev">${tile('bank','var(--green)')}<div class="rt">Recibe tu sueldo en Chiripa</div><div class="sub" style="max-width:32ch">Da estos datos a tu empleador. Son datos de demostración.</div></div>
-  <div class="list">${[['Número de ruta',S.dd.routing],['Número de cuenta',S.dd.account]].map(x=>`<button class="row" data-act="copy" data-v="${x[1].replace(/\s/g,'')}"><span class="rb"><small>${x[0]}</small><b class="mono">${x[1]}</b></span>${ic('copy','s')}</button>`).join('')}</div>
-  <div class="pad-b"><button class="btn tint" data-act="dd-sim">Simular nómina de $850.00</button></div>`});
+  openSheet({title:'Recibir pagos',body:()=>`<div class="rev">${tile('bank','var(--green)')}<div class="rt">Recibe pagos en Chiripa</div><div class="sub" style="max-width:32ch">Comparte tu $usuario: quien te pague lo verá reflejado en tu actividad en tiempo real.</div></div>
+  <div class="list"><button class="row" data-act="copy" data-v="${S.user.tag}"><span class="rb"><small>Tu $usuario</small><b class="mono">${S.user.tag}</b></span>${ic('copy','s')}</button></div>
+  <div class="pad-b"><button class="btn tint" data-act="invite">Compartir mi $usuario</button></div>`});
 }
 
 /* Ahorros */
@@ -1978,7 +1974,7 @@ function pickList(title,items,cur,act){
   openSheet({title,live:true,body:()=>`<div class="list">${items.map(i=>`<button class="row" data-act="${act}" data-v="${i[0]}"><span class="rb"><b>${esc(i[1])}</b></span>${String(cur())===String(i[0])?ic('check','s'):''}</button>`).join('')}</div>`});
 }
 function openWallet(){
-  openSheet({title:'Wallet',live:true,body:()=>`<div style="margin:6px 0 16px">${cardVisual()}</div><p class="sub" style="text-align:center;margin:0 0 14px">Paga con tu iPhone o Apple Watch. Función simulada en la demo.</p><div class="pad-b"><button class="btn" data-act="wallet-add" ${S.card.wallet?'disabled':''}>${S.card.wallet?'Ya está en Wallet':'Añadir a Wallet'}</button></div>`});
+  openSheet({title:'Wallet',live:true,body:()=>`<div style="margin:6px 0 16px">${cardVisual()}</div><p class="sub" style="text-align:center;margin:0 0 14px">Paga con tu iPhone o Apple Watch. Paga con tu iPhone o Apple Watch.</p><div class="pad-b"><button class="btn" data-act="wallet-add" ${S.card.wallet?'disabled':''}>${S.card.wallet?'Ya está en Wallet':'Añadir a Wallet'}</button></div>`});
 }
 
 /* Campos, ayuda y otros */
@@ -1986,7 +1982,7 @@ function openField(o){
   openSheet({title:o.title,props:{fo:o},body:()=>`<div class="list-h">${o.label}</div><div class="field" style="background:var(--sheet-surface)"><input id="fldIn" type="${o.type||'text'}" value="${esc(o.value||'')}" maxlength="40" autocomplete="off" autocapitalize="none"></div><p class="list-f neg" id="fldE"></p><div class="pad-b"><button class="btn" data-act="fld-save">Guardar</button></div>`});
 }
 function openHelp(){
-  openSheet({title:'Ayuda',size:'tall',body:()=>`<div class="list">${FAQ.map(f=>`<details class="faq"><summary>${f[0]}${ic('chevR','chev')}</summary><p>${f[1]}</p></details>`).join('')}</div><div class="list-h">Contacto</div><div class="list"><button class="row" data-act="copy" data-v="soporte@chiripa.demo"><span class="rb"><small>Correo de soporte (demo)</small><b>soporte@chiripa.demo</b></span>${ic('copy','s')}</button></div>`});
+  openSheet({title:'Ayuda',size:'tall',body:()=>`<div class="list">${FAQ.map(f=>`<details class="faq"><summary>${f[0]}${ic('chevR','chev')}</summary><p>${f[1]}</p></details>`).join('')}</div><div class="list-h">Contacto</div><div class="list"><div class="row"><span class="rb"><small>Soporte</small><b>Vega Platforms</b></span></div></div>`});
 }
 function openInvite(){
   const code=('CHIRIPA-'+S.user.tag.replace('$','').toUpperCase()).slice(0,20);
@@ -2036,7 +2032,7 @@ const A={
   'cash-bank':()=>{const s=top();s.bi=(s.bi||0)+1;paintAmount(s);},
   'co-speed':el=>{const s=top();s.speed=el.dataset.s;s.render();},
   dd:()=>openDD(),
-  'dd-sim':()=>{addTx({type:'deposit',title:'Depósito directo',sub:'Estudio Aurora · Nómina',amt:85000,eff:85000});notify('Llegó tu nómina','Recibiste $850.00 por depósito directo');closeSheet(top());refresh();},
+  'dd-sim':()=>openPay('request'),
   banks:openBanks,'bank-link':()=>linkBank(),
   'bank-pick':el=>{const s=top();s.bk=el.dataset.b;s.render();},
   'bank-add':()=>{const s=top(),v=$('#l4',s.body).value.replace(/\D/g,'');if(v.length!==4){toast('Revisa los dígitos','Escribe los últimos 4 dígitos de tu cuenta','bad');return;}
@@ -2068,7 +2064,7 @@ const A={
   'req-decline':el=>{const t=byId(allTx(),el.dataset.id);if(t.shared){setTransferStatus(t.id,'declined');toast('Solicitud rechazada',t.title,'info');return;}t.status='declined';t.eff=0;save();refresh();toast('Solicitud rechazada',t.title,'info');},
   'req-cancel':el=>{const t=byId(allTx(),el.dataset.id);if(t.shared){setTransferStatus(t.id,'canceled');toast('Solicitud cancelada',t.title,'info');return;}t.status='canceled';t.eff=0;t.settleAt=0;save();refresh();toast('Solicitud cancelada',t.title,'info');},
   'req-remind':el=>toast('Recordatorio enviado',(byId(allTx(),el.dataset.id)||{}).title||''),
-  report:()=>toast('Gracias por avisar','En la demo no se envía ningún reporte','info'),
+  report:async()=>{try{if(DB&&UID)await DB.doc('reports/'+uid('r')).set({by:UID,tag:S.user.tag,ts:Date.now()});toast('Reporte enviado','Gracias por avisar','ok');}catch(e){toast('No se pudo enviar','Revisa tu conexión e inténtalo otra vez','bad');}},
   'card-reveal':()=>{if(ui.reveal){ui.reveal=false;clearTimeout(ui.revT);render();return;}
     requirePin('Mostrar datos de la tarjeta',()=>{ui.reveal=true;clearTimeout(ui.revT);ui.revT=setTimeout(()=>{ui.reveal=false;render();},30000);render();});},
   'card-freeze':()=>{S.card.frozen=!S.card.frozen;save();render();toast(S.card.frozen?'Tarjeta congelada':'Tarjeta activa',S.card.frozen?'Se rechazarán todas las compras':'Ya puedes usarla otra vez','info',S.card.frozen?'lock':'unlock');},
@@ -2102,9 +2098,8 @@ const A={
   'su-start':openSignup,'wz-next':wzNext,'face-start':faceStart,'pin-forgot':openForgot,'pin-reset-new':pinResetGo,'login-go':loginGo,'vega-open':openVegaLogin,'stripe-verify':openStripeVerify,'stripe-go':stripeVerifyGo,'vega-go':vegaGo,'vega-totp-go':vegaTotpGo,'vega-forgot':()=>toast('Contraseña de Vega Platforms','Restablécela en Drex y vuelve a entrar aquí','info','lock'),'login-bio':loginBio,'forgot-pw':openForgotPw,'forgot-go':forgotGo,'wipe-device':wipeDevice,'setpw-go':setPwGo,'change-pw':openChangePw,'chpw-go':changePwGo,'new-rec':openNewRec,'newrec-go':newRecGo,logout:logout,'rec-done':()=>{const x=top();if(x)closeSheet(x);},'pw-eye':el=>{const i=el.closest('.field').querySelector('input');const show=i.type==='password';i.type=show?'text':'password';el.innerHTML=ic(show?'eyeoff':'eye');},'bio-toggle':bioToggle,twofa:openTwoFa,'twofa-verify':twofaVerify,'twofa-off':()=>{S.totp=null;save();closeSheet(top());refresh();toast('Dos pasos desactivados','','info','shield');},'totp-go':totpGo,'totp-cancel':()=>{closeSheet(top());if(!sheets.some(x=>x.isLogin||x.isLock||x.isWelcome))openLock();},kyc:openKyc,'kyc-save':kycSave,seccenter:openSecCenter,'lock-on':()=>{S.settings.lockOpen=true;save();refresh();},autolock:()=>{const o=[0,1,5];S.settings.autoLock=o[(o.indexOf(S.settings.autoLock||0)+1)%3];save();render();},
   login:()=>{if(S.onboarded){closeAllSheets();gate();}else{toast('Aún no hay una cuenta aquí','Crea una para empezar.','info');openSignup();}},
   'change-pin':changePin,lock:openLock,help:openHelp,invite:openInvite,limits:openLimits,
-  'demo-in':()=>{const c=S.contacts[rnd(0,S.contacts.length-1)],a=[1250,2000,3500,4800,7500][rnd(0,4)],n=['Gracias por todo','Mi parte del súper','Café de ayer','Entradas','Comida'][rnd(0,4)];
-    addTx({type:'receive',who:c.id,title:c.name,note:n,amt:a,eff:a});notify(c.name+' te envió '+money(a),n,'in');refresh();},
-  reset:el=>confirmTap(el,'Toca otra vez para restablecer',()=>{closeAllSheets();S=seed();save();ui.tab='home';ui.reveal=false;ui.q='';ui.filter='all';applyTheme();render();toast('Datos restablecidos','Volviste a los datos de ejemplo','info');})
+  'demo-in':()=>openPay('request'),
+  reset:el=>confirmTap(el,'Toca otra vez para borrar tu actividad',()=>{closeAllSheets();S.txs=[];S.goals=[];S.notifs=[];S.boost=null;save();ui.tab='home';ui.reveal=false;ui.q='';ui.filter='all';render();toast('Actividad borrada','Tu cuenta y tu sesión se conservan','info');})
 };
 document.addEventListener('click',e=>{const el=e.target.closest('[data-act]');if(!el||el.disabled)return;const f=A[el.dataset.act];if(f)f(el,e);});
 document.addEventListener('input',e=>{if(e.target.id==='actQ'){ui.q=e.target.value;$('#actList').innerHTML=actListHTML();}});
@@ -2150,7 +2145,7 @@ settle();
 setInterval(settle,1500);
 let lastAct=Date.now();['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,()=>{lastAct=Date.now();},true));
 setInterval(()=>{const m=S.settings.autoLock;if(S.onboarded&&m&&Date.now()-lastAct>m*60000&&!sheets.some(x=>x.isLock||x.isWelcome||x.isLogin||x.isSetPw||x.isRec)){openLock();}},10000);
-Promise.all([Promise.race([startShared(),new Promise(r=>setTimeout(r,2500))]),playIntro()]).then(async()=>{try{const vs=window.ChiripaCloud&&window.ChiripaCloud.vega?await window.ChiripaCloud.vega.session():null;if(vs){S.user.vegaSub=vs.sub;if(vs.email)S.user.email=vs.email;if(vs.name&&(!S.user.name||S.user.name==='Usuario Nuevo'))S.user.name=vs.name;S.onboarded=true;save();setAuthed(true);}}catch(e){}try{const u=S.user;if(u.pin&&u.pin!=='1234'){await setPin(u.pin);save();}else if(u.pin==='1234'&&u.pinDef===undefined){u.pinDef=true;}}catch(e){}stripeReturnCheck();gate();});
+window.addEventListener('online',()=>{if(!DB)startShared();});document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!DB)startShared();});Promise.all([Promise.race([startShared(),new Promise(r=>setTimeout(r,2500))]),playIntro()]).then(async()=>{try{const vs=window.ChiripaCloud&&window.ChiripaCloud.vega?await window.ChiripaCloud.vega.session():null;if(vs){S.user.vegaSub=vs.sub;if(vs.email)S.user.email=vs.email;if(vs.name&&(!S.user.name||S.user.name==='Usuario Nuevo'))S.user.name=vs.name;S.onboarded=true;save();setAuthed(true);}}catch(e){}try{const u=S.user;if(u.pin&&u.pin!=='1234'){await setPin(u.pin);save();}else if(u.pin==='1234'&&u.pinDef===undefined){u.pinDef=true;}}catch(e){}stripeReturnCheck();gate();});
 })();
 </script>
 
